@@ -1,0 +1,14 @@
+# macOS
+.DS_Store
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+.ipynb_checkpoints/
+
+# outputs written by smoke_test.py and scripts/hide_reveal.py
+smoke_run/
+demo_out/
+sent/
+recovered.png

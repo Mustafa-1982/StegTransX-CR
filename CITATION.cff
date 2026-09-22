@@ -1,0 +1,31 @@
+cff-version: 1.2.0
+message: "If you use this code or the released models, please cite the article given under preferred-citation."
+title: "StegTransX-CR: code and trained models"
+type: software
+version: "1.0.0"
+doi: "10.5281/zenodo.22894708"
+url: "https://doi.org/10.5281/zenodo.22894708"
+date-released: "2026-09-22"
+license: MIT
+keywords:
+  - deep image steganography
+  - image hiding
+  - compression resilience
+  - JPEG
+  - WebP
+  - HEIF
+  - AVIF
+authors:
+  # Complete before publishing the release: one entry per author.
+  - family-names: "FAMILY-NAME"
+    given-names: "GIVEN-NAMES"
+    affiliation: "AFFILIATION"
+preferred-citation:
+  type: article
+  title: "StegTransX-CR: Codec-Conditioned Transformer Image Hiding for JPEG, WebP, HEIF and AVIF Recompression"
+  journal: "International Journal of Intelligent Engineering and Systems"
+  status: in-preparation
+  year: 2026
+  authors:
+    - family-names: "FAMILY-NAME"
+      given-names: "GIVEN-NAMES"

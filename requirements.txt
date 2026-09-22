@@ -1,0 +1,10 @@
+# StegTransX-CR — Colab Pro+
+# Install with: pip install -r requirements.txt
+torch>=2.1
+torchvision
+numpy
+pillow
+matplotlib
+pandas
+pillow-heif
+pillow-avif-plugin
