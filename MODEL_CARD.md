@@ -1,5 +1,10 @@
 # Model card: StegTransX-CR (v1.0.0)
 
+> **Status.** The evaluation in this card has been superseded by a
+> matched-budget study. The v1.0.0 measurements reproduce and are retained, but
+> the conclusions drawn from them do not hold. The corrections are marked
+> inline and summarised under [Superseded conclusions](#superseded-conclusions).
+
 ## Model details
 
 - **Task.** Image-in-image hiding that must survive lossy recompression. The
@@ -27,12 +32,36 @@
   outputs.
 - **Licence.** MIT.
 
+## Superseded conclusions
+
+A later study trained thirteen models under one fixed budget — 30,000
+optimisation steps at batch 32 and 256 × 256, identical data, schedule,
+degradation regime and seed — and evaluated them on 1,000 paired COCO images and
+100 DIV2K images through the real encoders. Four conclusions in the original
+card do not survive it.
+
+| Original position | What the matched-budget study measured |
+|---|---|
+| The codec-conditioned design is the contribution | Ablating the conditioning pathway changes secret recovery by at most 0.36 dB either way (mean −0.12 dB over ten conditions) and leaves cover fidelity unchanged. The label *is* used — a wrong codec at inference costs 0.45 dB, 0.91 dB under JPEG — but a model denied it reaches the same accuracy by other routes. |
+| Results compared against the predecessor's published numbers | Retrained under the identical budget, the unconditioned predecessor reaches 25.53 dB cover and 27.41 dB secret at JPEG q80, against 21.24 and 21.99 dB, and leads at every condition on both datasets (paired Wilcoxon, n = 1,000, all \|d_z\| > 4.9). |
+| "Resistance to steganalysis: this was not evaluated" | It has been. A supervised detector reaches 0.9885 accuracy against the released `multi` weights, and above 0.98 against every model tested from fifty training pairs. **No model in this family is covert.** |
+| "One training run per regime. No variance across seeds was measured." | Measured. Across three seeds the conditioned multi-codec model spans 21.16 to 24.01 dB of cover fidelity — a 2.85 dB seed-to-seed range, wider than most differences this card reports. |
+
+A fifth point concerns the stopping rule rather than a claim. Validation cover
+fidelity under this objective peaks between steps 6,000 and 9,000 and then
+declines by 2.1 to 3.3 dB in eight of twelve conditioned runs, against 0.28 dB
+for the unconditioned baseline. Early stopping on validation secret PSNR, as
+used here, halts near that peak, so it selects a model that longer training does
+not produce.
+
 ## Intended use
 
 - Research on image hiding that survives JPEG, WebP, HEIF and AVIF
   recompression.
-- Reproducing and extending the experiments in the accompanying article.
-- A baseline for comparison.
+- Reproducing the v1 experiments, and serving as the artefact the
+  matched-budget study evaluated.
+- A baseline for comparison — with the caveat that the matched-budget study
+  found the unconditioned predecessor stronger under equal training.
 
 ## Out of scope
 
@@ -40,7 +69,9 @@
   changes are visible.
 - **Confidentiality.** The weights are public, so anyone can run the reveal
   network on a stego image made with them. No encryption or key is involved.
-- **Resistance to steganalysis.** This was not evaluated.
+- **Resistance to steganalysis.** **Evaluated, and absent.** A detector trained
+  on fifty cover/stego pairs exceeds 0.98 accuracy against every model in this
+  family. Do not treat these models as covert.
 - **Untested conditions.** The models were not tested on real social-media
   pipelines, resizing, cropping, other resolutions or non-photographic
   images.
@@ -80,7 +111,8 @@
   regime's own simulated compression, with a fixed seed of 2024 and λ₁ = 1.
   From epoch 150, the best checkpoint is selected and early stopping (patience
   9 epochs, minimum improvement 10⁻³ dB) is applied, both on validation secret
-  PSNR.
+  PSNR. **See the fifth point under Superseded conclusions: this rule is not
+  neutral.**
 - **Compression during training** (simulated, frozen, uncalibrated):
   - `single`: JPEG at quality 80.
   - `multi`: the codec is drawn uniformly per sample from the four codecs, and
@@ -141,6 +173,21 @@ Every stage of every chain uses quality 80. The largest drop in secret PSNR
 from the uncompressed case to any real chain is 2.58 dB (`multi`, JPEG → WebP
 → JPEG).
 
+### The same weights on the larger protocol
+
+These checkpoints were re-evaluated on 1,000 COCO pairs under the matched-budget
+protocol. The v1 numbers reproduce; the differences are the larger test set, not
+a discrepancy:
+
+| Released model | cover PSNR | secret, JPEG q80 | secret, four-codec chain |
+|---|---|---|---|
+| `single` | 20.78 | 22.10 | 21.46 |
+| `multi` | 20.66 | 22.11 | 21.13 |
+| `cascade` | 20.52 | 22.35 | 21.40 |
+
+The unconditioned predecessor, retrained under the same fixed budget, reaches
+25.53 dB cover and 27.41 dB secret at JPEG q80 on that protocol.
+
 ### Simulator versus real encoders
 
 The difference is simulated minus real secret PSNR, over qualities
@@ -153,21 +200,28 @@ The difference is simulated minus real secret PSNR, over qualities
   qualities, by up to +1.28 dB (WebP, `multi`, quality 65).
 
 The per-quality values are in `results/tables/results_all.csv` (column `engine`).
+The later study calibrated the non-JPEG branches, after which substituting the
+simulator for the real encoders at evaluation time shifts secret PSNR by at most
+0.014 dB.
 
 ## Limitations
 
 - **Visible changes.** Embedding strength is high, and the stego image
   visibly differs from the cover (about 21 dB PSNR on the test set).
+- **Not covert.** A detector trained on fifty cover/stego pairs exceeds 0.98
+  accuracy against every model in this family.
 - **Fidelity varies by image.** When `scripts/hide_reveal.py` was tested on
   scikit-image sample photographs, the cover-to-stego PSNR was 13.6–18.1 dB,
   and the outline of the secret was visible in the stego image.
 - **Moderate recovery quality.** Secret recovery is about 21–24 dB PSNR.
-- **One training run per regime.** No variance across seeds was measured.
-- **Evaluation scope.** The test set is limited to 200 pairs from COCO
-  val2017, at a single resolution (256 × 256).
-- **Uncalibrated simulator.** Its learned modules stayed at their identity
-  initialisation. The WebP, HEVC and AV1 step sizes in `codecs/quant.py` are
-  fitted analytic approximations.
+- **Seed sensitivity.** Across three seeds under the matched budget, cover
+  fidelity for this architecture spans 21.16–24.01 dB. The v1 runs are one seed
+  each.
+- **Evaluation scope of the v1 numbers.** 200 pairs from COCO val2017, at a
+  single resolution (256 × 256).
+- **Uncalibrated simulator in the v1 runs.** Its learned modules stayed at
+  their identity initialisation. The WebP, HEVC and AV1 step sizes in
+  `codecs/quant.py` are fitted analytic approximations.
 - **Chain naming.** The chain labelled "Platform simulate" in the results is
   a local JPEG → HEIF → WebP chain, not a measurement on a real platform.
 - **Unlogged figure in code comments.** A comment in `stegtransx_cr/config.py`
@@ -176,4 +230,4 @@ The per-quality values are in `results/tables/results_all.csv` (column `engine`)
 
 ## Citation
 
-Release DOI: [10.5281/zenodo.22894708](https://doi.org/10.5281/zenodo.22894708). Citation metadata is in `CITATION.cff`.
+Citation metadata is in `CITATION.cff`.

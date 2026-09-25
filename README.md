@@ -1,6 +1,17 @@
 # StegTransX-CR: code and trained models
 
-**Version 1.0.0** · MIT licence · DOI [10.5281/zenodo.22894708](https://doi.org/10.5281/zenodo.22894708)
+**Version 1.0.0** · MIT licence
+
+> ### ⚠ The evaluation in this release has been superseded
+>
+> A later matched-budget study re-trained this architecture and its
+> unconditioned predecessor under one identical protocol and reached the
+> opposite conclusion about the method's value. **The v1.0.0 measurements below
+> are not withdrawn — they reproduce — but the framing they supported does
+> not.** See [What the matched-budget study found](#what-the-matched-budget-study-found).
+>
+> The code and weights in this repository are unchanged and remain the exact
+> artefacts the later study evaluated.
 
 StegTransX-CR hides a full-resolution secret image inside a cover image so that
 the secret can still be recovered after the stego image is recompressed with
@@ -9,21 +20,83 @@ JPEG → WebP → JPEG. The hiding network is a hybrid CNN–Transformer conditi
 on the target codec through frequency-adaptive attention. The reveal network
 sees only the received image.
 
-This release accompanies the article *StegTransX-CR: Codec-Conditioned
-Transformer Image Hiding for JPEG, WebP, HEIF and AVIF Recompression*
-(in preparation for the *International Journal of Intelligent Engineering and
-Systems*). It contains:
+This release contains:
 
 - the training and evaluation code, byte-for-byte as used for the reported runs;
 - the three trained models;
-- the raw results files behind the article's tables and figures.
+- the raw results files behind the v1 article's tables and figures.
+
+## What the matched-budget study found
+
+The v1.0.0 results were produced with early stopping on validation secret PSNR,
+on 200 COCO test pairs, and were compared against the published numbers of the
+predecessor architecture rather than against a run of it. A later study removed
+both of those confounds. Thirteen models were trained under one fixed budget —
+30,000 optimisation steps at batch 32 and 256 × 256, identical data, schedule,
+degradation regime and seed — and evaluated on 1,000 paired COCO images and 100
+DIV2K images through the real encoders.
+
+**The codec-conditioned architecture did not improve on its unconditioned
+predecessor.** Retrained under the same budget, StegTransX-V1 reached 25.53 dB
+cover fidelity against 21.24 dB, and 27.41 dB secret recovery after real JPEG at
+quality 80 against 21.99 dB, and led at every channel condition tested on both
+datasets (paired Wilcoxon, n = 1,000; differences 5.22–6.43 dB, all
+|d_z| > 4.9).
+
+Three further findings bear directly on how this release should be read.
+
+1. **Codec conditioning contributes nothing net.** Ablating the conditioning
+   pathway under an otherwise identical run changed secret recovery by at most
+   0.36 dB in either direction (mean −0.12 dB over ten channel conditions) and
+   left cover fidelity unchanged. Yet declaring a *wrong* codec at inference
+   costs 0.45 dB on average, and 0.91 dB when the channel is JPEG — so the label
+   is genuinely used, but its information is available to the network by other
+   routes.
+2. **The objective is unstable over a long horizon.** In eight of the twelve
+   codec-conditioned runs, validation cover fidelity peaks between steps 6,000
+   and 9,000 and then declines by 2.1 to 3.3 dB, while the unconditioned
+   baseline loses 0.28 dB from its peak. Early stopping, as used for v1.0.0,
+   halts near that peak. A shorter budget therefore reports a better model than
+   longer training produces.
+3. **These models are not covert.** A supervised detector separates cover from
+   stego images produced by the released `multi` weights with **0.9885 accuracy**,
+   and reaches above 0.98 against every model tested from as few as fifty
+   training pairs. The v1.0.0 model card listed steganalysis as "not evaluated";
+   it has now been evaluated, and the answer is that no model in this family
+   offers detection resistance.
+
+### The released weights, re-measured
+
+The three checkpoints in this repository were re-evaluated under the larger
+protocol. The v1.0.0 numbers reproduce; the test set is simply bigger
+(1,000 pairs rather than 200), which is why they shift slightly:
+
+| Released model | cover PSNR | secret, JPEG q80 | secret, four-codec chain |
+|---|---|---|---|
+| `single` | 20.78 | 22.10 | 21.46 |
+| `multi` | 20.66 | 22.11 | 21.13 |
+| `cascade` | 20.52 | 22.35 | 21.40 |
+
+For comparison, the predecessor architecture retrained under the matched budget
+reaches 25.53 dB cover and 27.41 dB secret at JPEG q80. Retraining the
+predecessor also lifts it far above its own released weights, by 4.87 dB cover
+and 5.30 dB recovery — a larger gap than any architectural difference reported
+in this literature, which is the central methodological point of the later
+study.
+
+### Where the later work lives
+
+The experiment harness, the thirteen trained runs, the per-image evaluation
+arrays and the aggregated digest are held separately. A Zenodo record covering
+them is prepared but **not yet published**; this README will carry its DOI once
+it is. The harness pins the exact commits it used — see `UPSTREAM.md`.
 
 ## Contents
 
 | Path | What it is |
 |---|---|
 | `stegtransx_cr/` | Python package. It contains the hiding and reveal networks, frequency-adaptive attention, the differentiable JPEG/WebP/HEIF/AVIF simulators, real-encoder round trips, the losses, the training loop and the evaluation code. |
-| `StegTransX_CR.ipynb` | The Colab notebook used for the runs, with its saved outputs |
+| `StegTransX_CR.ipynb` | The Colab notebook used for the v1 runs, with its saved outputs |
 | `smoke_test.py` | End-to-end run on tiny synthetic images (a few minutes on CPU) |
 | `scripts/hide_reveal.py` | Command-line demo, with separate hide (sender) and reveal (receiver) commands |
 | `scripts/verify_release.py` | Checks the checksums, safe loading, and that the full and weights-only models give identical outputs |
@@ -31,9 +104,10 @@ Systems*). It contains:
 | `scripts/release_utils.py` | Loading and image helpers used by the scripts |
 | `checkpoints/full/best_{single,multi,cascade}.pth` | Training checkpoints saved at the best validation epoch, about 40 MB each. Besides the weights, they hold the optimiser, scheduler, AMP-scaler and early-stopping state and the per-epoch history. |
 | `checkpoints/weights/stegtransx_cr_{single,multi,cascade}.pth` | Weights-only files for inference, about 15 MB each: the hiding network, the reveal network and the frozen simulator |
-| `results/tables/` | Benchmark results. `results_all.csv` holds all 186 rows (3 models × scenarios × simulated and real encoders), and `results_<model>.csv` splits them per model. The LaTeX tables are the ones written by `eval.export_tables`. |
-| `results/history/history_{single,multi,cascade}.csv` | Per-epoch training and validation logs |
+| `results/tables/` | **v1 benchmark results**, on 200 test pairs. `results_all.csv` holds all 186 rows (3 models × scenarios × simulated and real encoders). Superseded as evidence for the method's value; retained as the record of the v1 runs. |
+| `results/history/history_{single,multi,cascade}.csv` | Per-epoch training and validation logs for the v1 runs |
 | `results/figures/` | PNG figures written by the notebook: convergence, losses, validation PSNR, quality sweeps and qualitative grids |
+| `UPSTREAM.md` | The exact commits of this package and of the baseline used by the matched-budget study |
 | `MODEL_CARD.md` | Model details, training set-up, results and limitations |
 | `CITATION.cff`, `LICENSE`, `SHA256SUMS` | Citation metadata, licence and checksums of every file |
 
@@ -45,7 +119,7 @@ Systems*). It contains:
 | `multi` | Codec and quality (50–95) drawn per sample | 159 | 150 | 23.48 dB |
 | `cascade` | 1–3 recompressions per batch; the first stage uses the conditioning codec | 166 | 157 | 23.31 dB |
 
-Secret-image PSNR on the 200 test pairs, with every codec at quality 80 run
+Secret-image PSNR on the 200 v1 test pairs, with every codec at quality 80 run
 through the real encoders:
 
 | Model | No compression | JPEG | WebP | HEIF | AVIF | JPEG → WebP → JPEG | JPEG → WebP → HEIF → AVIF |
@@ -55,8 +129,8 @@ through the real encoders:
 | `cascade` | 23.88 | 22.60 | 22.89 | 23.65 | 23.21 | 21.61 | 21.67 |
 
 The cover-to-stego PSNR is 20.77–20.96 dB, so the stego image is visibly
-different from the cover. See `MODEL_CARD.md` for the full results and
-limitations.
+different from the cover. These are the v1 measurements; read them alongside
+the section above. See `MODEL_CARD.md` for the full results and limitations.
 
 ## Installation
 
@@ -140,6 +214,9 @@ from a trusted source.
    (`runs/checkpoints/` in the notebook). The evaluation cells load them with
    `train.load_best` and rebuild the benchmark tables.
 
+This reproduces the **v1** protocol, with early stopping and 200 test pairs.
+The matched-budget protocol is a different harness; see `UPSTREAM.md`.
+
 ## Implementation notes
 
 These are deliberate differences from the original specification, as
@@ -150,14 +227,19 @@ implemented in this code:
    Charbonnier term and a range-restriction term.
 3. The hiding-loss weight is 0 for epochs 1–30 and then rises linearly to 1 by
    epoch 150. Best-checkpoint selection and early stopping (patience 9, on
-   validation secret PSNR) start at epoch 150.
+   validation secret PSNR) start at epoch 150. **The later study identifies this
+   stopping rule as load-bearing**: validation cover fidelity peaks near where
+   early stopping halts and declines thereafter, so the rule selects a model
+   that longer training does not produce.
 4. The cosine learning-rate horizon is 500 epochs for `single` and 250 for
    `multi` and `cascade`. The single run started under a 500-epoch setting
    and was resumed at epoch 114 with a 250-epoch cap. The scheduler kept its
    500-epoch horizon.
-5. The simulator is frozen and was not calibrated. `calibrate.py` is included,
-   but its notebook cell was not executed, so the learned simulator modules
-   remain at their identity initialisation.
+5. The simulator is frozen and was not calibrated in the v1 runs. `calibrate.py`
+   is included, but its notebook cell was not executed, so the learned simulator
+   modules remain at their identity initialisation. The later study did run
+   calibration, and found that substituting the calibrated simulator for the
+   real encoders at evaluation time shifts secret PSNR by at most 0.014 dB.
 6. Every test scenario is measured twice: through the differentiable simulator
    and through the real encoders.
 7. The three regimes are trained independently, each from freshly initialised
@@ -173,7 +255,6 @@ python scripts/verify_release.py # any platform
 
 ## Citation and licence
 
-The DOI of this release is [10.5281/zenodo.22894708](https://doi.org/10.5281/zenodo.22894708). Citation metadata is in
-`CITATION.cff`. The code and model weights are
+Citation metadata is in `CITATION.cff`. The code and model weights are
 released under the MIT licence (`LICENSE`). The training and test images are
 not redistributed here. DIV2K and COCO have their own terms of use.
